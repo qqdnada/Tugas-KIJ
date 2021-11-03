@@ -29,7 +29,7 @@ class Chat:
                 password = d[2].strip()
 
                 logging.warning("AUTH: auth {} {}".format(username, password))
-                return  self.autentikasi_user(username, password)
+                return self.autentikasi_user(username, password)
 
             elif (command == 'send'):
                 sessionid = d[1].strip()

@@ -3,7 +3,7 @@ import json
 
 from des import DataEncryptionStandard
 
-en = DataEncryptionStandard()
+des = DataEncryptionStandard()
 
 TARGET_IP = "127.0.0.1"
 TARGET_PORT = 8889
@@ -14,6 +14,8 @@ class ChatClient:
         self.server_address = (TARGET_IP,TARGET_PORT)
         self.sock.connect(self.server_address)
         self.tokenid=""
+        self.key = des.keygeneration()
+        self.key_decrypt = self.key[::-1]
     def proses(self,cmdline):
         d = cmdline.split(" ")
         try:
@@ -24,13 +26,13 @@ class ChatClient:
                 return self.login(username,password)
             elif (command=='send'):
                 usernameto = d[1].strip()
-
                 message = ""
                 for m in d[2:]:
                    message = "{} {}" . format(message,m)
-                ciphertext = en.encrypt(message)
-                print(type(ciphertext))
+                hexmsg = des.ascii2hex(message)
+                ciphertext = des.encrypts(hexmsg, self.key)
 
+                # return self.sendmessage(usernameto, message)
                 return self.sendmessage(usernameto, ciphertext)
             elif (command == 'inbox'):
                 return self.inbox()
@@ -79,7 +81,8 @@ class ChatClient:
         if result['status'] == 'OK':
             for user in result['messages']:
                 for msg in result['messages'][user]:
-                    print(en.decrypt(msg['msg']))
+                    res = des.encrypts(msg['msg'], self.key_decrypt)
+                    msg['msg'] = des.hex2ascii(res)
             return "{}" . format(json.dumps(result['messages']))
         else:
             return "Error, {}" . format(result['message'])

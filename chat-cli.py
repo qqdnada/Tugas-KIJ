@@ -1,9 +1,12 @@
 import socket
 import json
+import base64
 
 from des import DataEncryptionStandard
+from rsa import RSAAlgorithm
 
 des = DataEncryptionStandard()
+rsa = RSAAlgorithm()
 
 TARGET_IP = "127.0.0.1"
 TARGET_PORT = 8889
@@ -13,9 +16,15 @@ class ChatClient:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_address = (TARGET_IP,TARGET_PORT)
         self.sock.connect(self.server_address)
-        self.tokenid=""
-        self.key = des.keygeneration()
-        self.key_decrypt = self.key[::-1]
+        self.tokenid = ""
+        self.private = "private_key.pem"
+        self.public = "public_key.pem"
+        self.keys = {}
+
+        rsa.export_private_key(rsa.keypair, self.private)
+        rsa.export_public_key(rsa.public_key, self.public)
+        # self.key = des.keygeneration()
+        # self.key_decrypt = self.key[::-1]
     def proses(self,cmdline):
         d = cmdline.split(" ")
         try:
@@ -29,11 +38,35 @@ class ChatClient:
                 message = ""
                 for m in d[2:]:
                    message = "{} {}" . format(message,m)
-                hexmsg = des.ascii2hex(message)
-                ciphertext = des.encrypts(hexmsg, self.key)
+
+                des_key = []
+                if (usernameto in self.keys.keys()):
+                    des_key = self.keys[usernameto]
+                else:
+                    if (self.check_key(usernameto)):
+                        des_key = self.check_key(usernameto)
+                        print(des_key)
+
+                        file = open("private_key.pem", "r").read()
+
+                        for k in des_key:
+                            decrypt = base64.b64decode(k.encode())
+                            # plain = rsa.decrypt(file, decrypt)
+                            print(decrypt)
+                        # self.keys[usernameto] = des_key
+                    else:
+                        des_key = des.keygeneration()
+                        print(des_key)
+                        self.keys[usernameto] = des_key
+                        self.sendkey(usernameto)
+
+                print(self.keys)
+
+                # hexmsg = des.ascii2hex(message)
+                # ciphertext = des.encrypts(hexmsg, self.key)
 
                 # return self.sendmessage(usernameto, message)
-                return self.sendmessage(usernameto, ciphertext)
+                # return self.sendmessage(usernameto, ciphertext)
             elif (command == 'inbox'):
                 return self.inbox()
             else:
@@ -56,7 +89,11 @@ class ChatClient:
             self.sock.close()
             return {'status': 'ERROR', 'message': 'Gagal'}
     def login(self,username,password):
-        string = "auth {} {} \r\n" . format(username,password)
+
+        public_file = open(self.public, 'rb').read()
+        public_key = base64.b64encode(public_file).decode()
+
+        string = "auth {} {} {}\r\n" . format(username,password,public_key)
         result = self.sendstring(string)
         if result['status'] == 'OK':
             self.tokenid = result['tokenid']
@@ -73,6 +110,52 @@ class ChatClient:
             return "message sent to {}" . format(usernameto)
         else:
             return "Error, {}" . format(result['message'])
+    def sendkey(self, usernameto):
+        if (self.tokenid == ""):
+            return "Error, not authorized"
+
+        string = "key {} {}\r\n".format(self.tokenid,usernameto)
+        result = self.sendstring(string)
+
+        if result['status'] == 'OK':
+
+            public_key = base64.b64decode(result['public_key'].encode())
+
+            public_file = open(usernameto + '-public_key.pem', 'wb')
+            public_file.write(public_key)
+            public_file.close()
+
+        else:
+            return "Error, {}" . format(result['message'])
+
+        des_key = []
+        file = open(usernameto + "-public_key.pem", "r").read()
+
+        for k in self.keys[usernameto]:
+            cipher = rsa.encrypt(file, str.encode(k))
+            des_key.append(base64.b64encode(cipher).decode())
+
+        string_key = " ".join(map(str, des_key))
+        string = "sendkey {} {} {} \r\n".format(self.tokenid,usernameto, string_key)
+        print(string)
+
+        result = self.sendstring(string)
+        if result['status'] == 'OK':
+            print(result['keys'])
+            return "DES key sent to {}".format(usernameto)
+        else:
+            return "Error, {}".format(result['message'])
+
+    def check_key(self,usernameto):
+        if (self.tokenid == ""):
+            return "Error, not authorized"
+        string = "check {} {}\r\n" . format(self.tokenid,usernameto)
+        result = self.sendstring(string)
+        if result['status'] == 'OK':
+            return result['key']
+        else:
+            return False
+
     def inbox(self):
         if (self.tokenid == ""):
             return "Error, not authorized"

@@ -62,5 +62,5 @@ if __name__ == "__main__":
     fpr = open("private_key.pem", "r")
     plain = rsa.decrypt(fpr.read(), cipher)
 
-    print(plain)
+    print(plain.decode())
 

@@ -49,11 +49,14 @@ class ChatClient:
 
                         file = open("private_key.pem", "r").read()
 
+                        deskey = []
                         for k in des_key:
                             decrypt = base64.b64decode(k.encode())
-                            # plain = rsa.decrypt(file, decrypt)
-                            print(decrypt)
-                        # self.keys[usernameto] = des_key
+                            plain = rsa.decrypt(file, decrypt)
+                            deskey.append(plain.decode())
+                            print(plain.decode())
+                        self.keys[usernameto] = deskey
+                        des_key = deskey
                     else:
                         des_key = des.keygeneration()
                         print(des_key)
@@ -62,11 +65,11 @@ class ChatClient:
 
                 print(self.keys)
 
-                # hexmsg = des.ascii2hex(message)
-                # ciphertext = des.encrypts(hexmsg, self.key)
+                hexmsg = des.ascii2hex(message)
+                ciphertext = des.encrypts(hexmsg, des_key)
 
                 # return self.sendmessage(usernameto, message)
-                # return self.sendmessage(usernameto, ciphertext)
+                return self.sendmessage(usernameto, ciphertext)
             elif (command == 'inbox'):
                 return self.inbox()
             else:
@@ -163,8 +166,9 @@ class ChatClient:
         result = self.sendstring(string)
         if result['status'] == 'OK':
             for user in result['messages']:
+                key_decrypt = self.keys[user][::-1]
                 for msg in result['messages'][user]:
-                    res = des.encrypts(msg['msg'], self.key_decrypt)
+                    res = des.encrypts(msg['msg'], key_decrypt)
                     msg['msg'] = des.hex2ascii(res)
             return "{}" . format(json.dumps(result['messages']))
         else:
